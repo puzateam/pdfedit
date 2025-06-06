@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - แก้ไขและจัดการข้อมูล</title>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        /* === DESIGNS FROM IMAGE 2 (INDEX PAGE STYLE) === */
+        @import url('https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600&display=swap');
+        :root {
+            --primary-color: #6a11cb;
+            --light-purple-bg: #f8f3ff;
+            --text-color: #2c3e50;
+            --light-grey-bg: #f0f0f0;
+            --viewer-bg: #e9ecef;
+            --border-color: #ddd;
+            --shadow-color: rgba(0,0,0,0.05);
+            --green-btn: #28a745;
+            --red-btn: #dc3545;
+        }
+        body { 
+            font-family: 'Prompt', sans-serif; 
+            margin: 0; 
+            padding: 2rem; 
+            background-color: #f4f6f9; 
+            color: var(--text-color); 
+            display: flex; 
+            justify-content: center;
+            align-items: flex-start;
+        }
+        .app-container { 
+            width: 100%;
+            max-width: 1200px;
+            padding: 2rem; 
+            background-color: white; 
+            border-radius: 12px; 
+            box-shadow: 0 10px 30px var(--shadow-color);
+            border: 2px solid var(--primary-color);
+            box-sizing: border-box;
+        }
+        .btn { 
+            border: 1px solid var(--border-color); 
+            padding: 0.7rem 1.2rem; 
+            font-size: 0.9rem; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            transition: background-color 0.2s ease; 
+            font-family: 'Prompt', sans-serif; 
+            font-weight: 500; 
+            background-color: var(--light-grey-bg);
+            color: var(--text-color);
+            display: inline-flex; 
+            align-items: center; 
+            justify-content: center; 
+            gap: 0.5rem; 
+            box-shadow: none;
+        }
+        .btn:hover { background-color: #e0e0e0; }
+        .btn:disabled { background-color: #e9ecef; color: #aaa; cursor: not-allowed; border-color: #e0e0e0; }
+        .btn.primary-btn { background-color: var(--primary-color); color: white; border-color: var(--primary-color); }
+        .btn.primary-btn:hover { background-color: #5a0cb2; }
+        .btn.green-btn { background-color: var(--green-btn); color: white; border-color: var(--green-btn); }
+        .btn.green-btn:hover { background-color: #218838; }
+
+        /* Table specific styles */
+        .table-section {
+            padding: 1rem;
+            border: 2px dashed var(--primary-color);
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            background-color: var(--light-purple-bg);
+        }
+        .dashboard-table { width: 100%; border-collapse: collapse; background-color: white; }
+        .dashboard-table th, .dashboard-table td { border: 1px solid var(--border-color); padding: 0.8rem; text-align: left; vertical-align: middle; }
+        .dashboard-table th { background-color: #f8f9fa; font-weight: 600; }
+        
+        /* Viewer specific styles */
+        .viewer-wrapper {
+            background-color: var(--light-grey-bg);
+            border-radius: 8px;
+            padding: 1rem;
+        }
+        .viewer-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+        }
+        .file-info { display: flex; align-items: center; gap: 1rem; }
+        .file-icon { font-size: 1.5rem; color: var(--primary-color); }
+        .file-name { font-size: 1rem; color: var(--text-color); font-weight: 500; }
+        
+        .viewer-controls {
+            display: flex;
+            justify-content: flex-start;
+            margin-bottom: 1rem;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .viewer-main-content {
+            background-color: var(--viewer-bg);
+            padding: 2rem;
+            border-radius: 4px;
+            min-height: 500px;
+            display: flex;
+            justify-content: center;
+            align-items: center; /* Center placeholder */
+        }
+        .viewer-main-content img {
+            max-width: 100%;
+            height: auto;
+            background-color: white;
+            box-shadow: 0 0 20px rgba(0,0,0,0.15);
+        }
+        #viewer-placeholder { text-align: center; color: #6c757d; }
+        #viewer-placeholder .file-icon { font-size: 4rem; margin-bottom: 1rem; color: var(--primary-color); opacity: 0.5; }
+
+        .save-container {
+            display: flex;
+            justify-content: center;
+            margin-top: 1rem;
+        }
+        .hidden { display: none !important; }
+        .loading-spinner-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(255,255,255,0.7); z-index: 10001; justify-content: center; align-items: center; }
+        .spinner { width: 50px; height: 50px; border: 5px solid #f3f3f3; border-top: 5px solid var(--primary-color); border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Section 1: Data Table -->
+        <div class="table-section">
+            <h2 style="text-align:left; margin-bottom:1rem; font-size:1.2rem;">รายการข้อมูลที่บันทึก</h2>
+            <div id="table-container" style="max-height: 300px; overflow-y: auto;">
+                 <p id="loading-message" class="loading-message">กำลังโหลดข้อมูล...</p>
+                 <table class="dashboard-table hidden" id="data-table">
+                    <thead>
+                        <tr>
+                            <th>เลขที่หนังสือ</th>
+                            <th>ข้อความผู้อำนวยการ</th>
+                            <th>เครื่องมือ</th>
+                        </tr>
+                    </thead>
+                    <tbody id="data-table-body"></tbody>
+                </table>
+                <p id="no-data-message" class="no-data-message hidden">ไม่พบข้อมูลที่บันทึกไว้</p>
+            </div>
+        </div>
+
+        <!-- Section 2: Viewer & Editor -->
+        <div class="viewer-wrapper">
+            <div class="viewer-header">
+                <div class="file-info">
+                    <div class="file-icon">📄</div>
+                    <div class="file-name" id="viewer-filename">กรุณาเลือกรายการจากตารางด้านบน</div>
+                </div>
+            </div>
+            <div class="viewer-controls">
+                <textarea id="director-text-edit" class="btn" style="width:100%; min-height: 50px; text-align:left;" placeholder="ข้อความลงนามจะแสดงที่นี่..."></textarea>
+            </div>
+            <div class="viewer-main-content">
+                <div id="viewer-placeholder">
+                    <div class="file-icon">🖼️</div>
+                    <p>รูปภาพจะแสดงที่นี่</p>
+                </div>
+                <img id="viewer-image" src="" class="hidden" alt="เอกสารที่บันทึกแล้ว">
+            </div>
+             <div class="save-container">
+                <input type="hidden" id="editing-row-index">
+                <button class="btn green-btn" id="save-changes-btn" disabled>บันทึกข้อมูล</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="loading-spinner-overlay" id="loading-spinner-overlay"><div class="spinner"></div></div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Element variables
+            const dataTable = document.getElementById('data-table');
+            const dataTableBody = document.getElementById('data-table-body');
+            const loadingMessageEl = document.getElementById('loading-message');
+            const noDataMessageEl = document.getElementById('no-data-message');
+            const loadingSpinnerOverlay = document.getElementById('loading-spinner-overlay');
+
+            // Viewer elements
+            const viewerFilename = document.getElementById('viewer-filename');
+            const viewerImage = document.getElementById('viewer-image');
+            const viewerPlaceholder = document.getElementById('viewer-placeholder');
+            const directorTextEdit = document.getElementById('director-text-edit');
+            const editingRowIndexInput = document.getElementById('editing-row-index');
+            const saveChangesBtn = document.getElementById('save-changes-btn');
+
+            function showLoadingSpinner(show) {
+                loadingSpinnerOverlay.style.display = show ? 'flex' : 'none';
+            }
+
+            function loadDashboardData() {
+                showLoadingSpinner(true);
+                loadingMessageEl.classList.remove('hidden');
+                dataTable.classList.add('hidden');
+                noDataMessageEl.classList.add('hidden');
+                dataTableBody.innerHTML = ''; 
+
+                google.script.run
+                    .withSuccessHandler(response => {
+                        showLoadingSpinner(false);
+                        loadingMessageEl.classList.add('hidden');
+                        if (response.error) {
+                            noDataMessageEl.textContent = `เกิดข้อผิดพลาด: ${response.message}`;
+                            noDataMessageEl.classList.remove('hidden'); return;
+                        }
+                        if (response.data && response.data.length > 0) {
+                            populateTable(response.data);
+                            dataTable.classList.remove('hidden');
+                        } else {
+                            noDataMessageEl.textContent = 'ไม่พบข้อมูลที่บันทึกไว้';
+                            noDataMessageEl.classList.remove('hidden');
+                        }
+                    })
+                    .withFailureHandler(error => {
+                        showLoadingSpinner(false);
+                        loadingMessageEl.classList.add('hidden');
+                        noDataMessageEl.textContent = 'เกิดข้อผิดพลาดในการเชื่อมต่อ';
+                    })
+                    .getDashboardDisplayData();
+            }
+
+            function populateTable(data) {
+                dataTableBody.innerHTML = '';
+                data.forEach((item) => {
+                    const row = dataTableBody.insertRow();
+                    row.insertCell().textContent = item.docNumber || 'N/A';
+                    
+                    const textCell = row.insertCell();
+                    textCell.textContent = item.directorText || 'N/A';
+                    textCell.id = `director-text-cell-${item.rowIndex}`;
+
+                    const toolsCell = row.insertCell();
+                    const viewBtn = document.createElement('button');
+                    viewBtn.textContent = 'ดู/แก้ไข';
+                    viewBtn.className = 'btn primary-btn';
+                    viewBtn.onclick = () => openViewer(item.rowIndex);
+                    toolsCell.appendChild(viewBtn);
+                });
+            }
+            
+            function openViewer(rowIndex) {
+                showLoadingSpinner(true);
+                google.script.run
+                    .withSuccessHandler(response => {
+                        showLoadingSpinner(false);
+                        if (response.error) {
+                            Swal.fire('ผิดพลาด', `ไม่สามารถโหลดข้อมูล: ${response.message}`, 'error'); return;
+                        }
+                        
+                        viewerFilename.textContent = `เลขที่หนังสือ: ${response.data.docNumber || 'N/A'}`;
+                        directorTextEdit.value = response.data.directorText || '';
+                        editingRowIndexInput.value = rowIndex;
+                        
+                        viewerImage.src = response.data.fileLink || '';
+                        viewerImage.classList.remove('hidden');
+                        viewerPlaceholder.classList.add('hidden');
+                        
+                        saveChangesBtn.disabled = false;
+                    })
+                    .withFailureHandler(error => {
+                        showLoadingSpinner(false);
+                        Swal.fire('ผิดพลาด', `การเชื่อมต่อล้มเหลว: ${error.message}`, 'error');
+                    })
+                    .getRecordDetails(rowIndex);
+            }
+
+            saveChangesBtn.addEventListener('click', () => {
+                const rowIndex = editingRowIndexInput.value;
+                const newText = directorTextEdit.value.trim();
+                if (!rowIndex) return;
+                
+                showLoadingSpinner(true);
+                google.script.run
+                    .withSuccessHandler(response => {
+                        showLoadingSpinner(false);
+                        if (response.success) {
+                            Swal.fire('สำเร็จ', response.message, 'success');
+                            document.getElementById(`director-text-cell-${rowIndex}`).textContent = newText;
+                        } else {
+                            Swal.fire('ผิดพลาด', `ไม่สามารถบันทึก: ${response.message}`, 'error');
+                        }
+                    })
+                    .withFailureHandler(error => {
+                        showLoadingSpinner(false);
+                        Swal.fire('ผิดพลาด', `การเชื่อมต่อล้มเหลว: ${error.message}`, 'error');
+                    })
+                    .updateDirectorComment(rowIndex, newText);
+            });
+
+            loadDashboardData();
+        });
+    </script>
+</body>
+</html>
