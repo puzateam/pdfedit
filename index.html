@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Viewer & Annotation Tool</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+    </script>
+    <style>
+        /* ... (CSS เหมือนเดิมจากครั้งที่แล้ว) ... */
+        @import url('https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600&display=swap');
+        :root {
+            --primary-color: #6a11cb; --secondary-color: #2575fc; --text-color: #2c3e50;
+            --light-bg: #f8f9fa; --border-color: #ddd; --shadow-color: rgba(0,0,0,0.1);
+            --hover-color: rgba(106,17,203,0.1); --form-bg: rgba(106,17,203,0.05);
+            --purple-btn: #6a11cb; --green-btn: #28a745; --red-btn: #D70040;
+            --dark-blue-border: #00008B; --dark-red-border: #FF0000;
+            --annotation-text-color: #00008B; --save-btn: #FF9800; --disabled-btn: #cccccc;
+        }
+        body { font-family: 'Prompt', sans-serif; margin: 0; padding: 0; background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%); color: var(--text-color); min-height: 100vh; display: flex; flex-direction: column; }
+        .app-wrapper { display: flex; flex-direction: column; min-height: 100vh; }
+        .login-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 2rem;
+            background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
+        }
+        .login-form {
+            background-color: white;
+            padding: 2.5rem;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+        .login-form h2 {
+            color: var(--primary-color);
+            margin-bottom: 1.5rem;
+            font-weight: 600;
+        }
+        .login-form .form-group {
+            margin-bottom: 1rem;
+            text-align: left;
+        }
+        .login-form label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            font-size: 0.9rem;
+        }
+        .login-form .form-control {
+            width: 100%;
+            padding: 0.7rem;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-family: 'Prompt', sans-serif;
+            font-size: 0.9rem;
+            box-sizing: border-box;
+        }
+        .login-form .btn {
+            width: 100%;
+            margin-top: 1rem;
+        }
+        .app-container { max-width: 1200px; margin: 2rem auto; padding: 2rem; background-color: white; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); flex: 1; width: 90%; display: flex; flex-direction: column; }
+        h1 { color: var(--text-color); text-align: center; margin-bottom: 1.5rem; font-weight: 600; }
+        .upload-section { display: flex; align-items: center; padding: 1.5rem; border: 2px dashed var(--primary-color); border-radius: 8px; margin-bottom: 1.5rem; background-color: rgba(106,17,203,0.05); transition: all 0.3s ease; }
+        .upload-section:hover { background-color: var(--hover-color); }
+        .upload-icon { font-size: 2rem; margin-right: 1rem; color: var(--primary-color); }
+        .upload-text { flex: 1; }
+        .file-input { display: none; }
+        .btn { border: none; padding: 0.8rem 1.5rem; font-size: 0.9rem; border-radius: 50px; cursor: pointer; transition: all 0.3s ease; font-family: 'Prompt', sans-serif; font-weight: 500; white-space: nowrap; display: flex; align-items: center; justify-content: center; gap: 0.5rem; }
+        .btn:disabled { background-color: var(--disabled-btn); color: #666; cursor: not-allowed; box-shadow: none; }
+        .btn:disabled:hover { background-color: var(--disabled-btn); transform: none; box-shadow: none; }
+        .primary-btn { background-color: var(--primary-color); color: white; }
+        .primary-btn:hover { background-color: #5a0cb2; transform: translateY(-2px); box-shadow: 0 5px 15px rgba(106,17,203,0.3); }
+        .secondary-btn { background-color: var(--secondary-color); color: white; }
+        .secondary-btn:hover { background-color: #1a65e0; }
+        .danger-btn { background-color: #e74c3c; color: white; }
+        .danger-btn:hover { background-color: #c0392b; }
+        .purple-btn { background-color: var(--purple-btn); color: white; }
+        .purple-btn:hover { background-color: #5a0cb2; box-shadow: 0 5px 15px rgba(106,17,203,0.3); }
+        .green-btn { background-color: var(--green-btn); color: white; }
+        .green-btn:hover { background-color: #218838; box-shadow: 0 5px 15px rgba(40,167,69,0.3); }
+        .red-btn { background-color: var(--red-btn); color: white; }
+        .red-btn:hover { background-color: #B30036; box-shadow: 0 5px 15px rgba(215,0,64,0.3); }
+        .save-btn { background-color: var(--save-btn); color: white; }
+        .save-btn:hover { background-color: #e08600; box-shadow: 0 5px 15px rgba(255,152,0,0.3); }
+        .pdf-tool-content { display: flex; flex-direction: column; flex: 1; min-height: 500px; margin-top: 1.5rem; border: 1px solid var(--border-color); border-radius: 8px; padding: 1rem; background-color: var(--light-bg); }
+        .pdf-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; padding: 0.8rem 1.2rem; background-color: var(--light-bg); border-radius: 8px; box-shadow: 0 2px 5px var(--shadow-color); }
+        .header-top-controls { display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 1rem; }
+        .user-info-display { font-size: 0.9rem; color: var(--text-color); }
+        .file-info-controls-group { display: flex; align-items: center; gap: 1.5rem; flex-grow: 1; }
+        .file-info { display: flex; align-items: center; gap: 1rem; }
+        .file-icon { font-size: 1.5rem; color: var(--primary-color); }
+        .file-name { font-size: 1.1rem; color: var(--text-color); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 250px; }
+        .header-actions { display: flex; gap: 0.8rem; align-items: center; margin-left: auto; }
+        .zoom-controls { display: flex; gap: 0.5rem; }
+        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; opacity: 0; visibility: hidden; transition: all 0.3s; }
+        .modal.active { opacity: 1; visibility: visible; }
+        .modal-form { background-color: white; padding: 2rem; border-radius: 12px; width: 90%; max-width: 600px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+        .form-title { font-size: 1.5rem; font-weight: 600; margin-top: 0; margin-bottom: 1.5rem; color: var(--primary-color); text-align: center; }
+        .form-row { display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem; }
+        .form-group { flex: 1; min-width: 200px; }
+        .form-group label { display: block; margin-bottom: 0.5rem; font-weight: 500; font-size: 0.9rem; }
+        .form-control { width: 100%; padding: 0.7rem; border: 1px solid var(--border-color); border-radius: 4px; font-family: 'Prompt', sans-serif; font-size: 0.9rem; }
+        .form-actions { display: flex; justify-content: flex-end; gap: 1rem; margin-top: 1.5rem; }
+        .pdf-controls { display: flex; justify-content: center; margin-bottom: 1rem; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+        .page-info { font-size: 1rem; margin: 0; display: flex; align-items: center; color: var(--text-color); background-color: white; padding: 0.6rem 1.2rem; border-radius: 50px; box-shadow: 0 2px 5px var(--shadow-color); }
+        .pdf-viewer-container { flex: 1; overflow: auto; border: 1px solid var(--border-color); box-shadow: 0 2px 10px var(--shadow-color); border-radius: 4px; background-color: #e0e0e0; display: flex; flex-direction: column; justify-content: flex-start; align-items: center; padding: 2rem; min-height: 400px; position: relative; }
+        .a4-container { width: 210mm; background-color: white; box-shadow: 0 0 20px rgba(0,0,0,0.15); margin: 0 auto; position: relative; }
+        #pdf-viewer { width: 100%; display: flex; justify-content: center; position: relative; }
+        canvas { max-width: 100%; height: auto; display: block; }
+        .no-pdf-message { display: flex; flex-direction: column; align-items: center; justify-content: center; color: #6c757d; text-align: center; padding: 2rem; min-height: 200px; }
+        .no-pdf-icon { font-size: 4rem; margin-bottom: 1rem; color: var(--primary-color); opacity: 0.5; }
+        .tooltip { position: relative; }
+        .tooltip:hover::after { content: attr(data-tooltip); position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); background-color: rgba(0,0,0,0.8); color: white; padding: 0.5rem; border-radius: 4px; font-size: 0.8rem; white-space: nowrap; z-index: 10; margin-bottom: 5px; }
+        .text-annotation { position: absolute; padding: 3px 6px; border-radius: 3px; font-family: 'Prompt', sans-serif; font-size: 13px; width: 200px; min-height: 18px; box-shadow: 0 1px 2px rgba(0,0,0,0.15); cursor: move; z-index: 5; word-wrap: break-word; overflow-wrap: break-word; color: var(--annotation-text-color); line-height: 1.0; }
+        .text-annotation div[contenteditable="true"] { line-height: 1.0; white-space: pre-wrap; margin: 0; padding: 0; }
+        .text-annotation.type-1 { background-color: rgba(255, 255, 255, 0.9); border: 1px solid var(--dark-blue-border); }
+        .text-annotation.type-2 { background-color: rgba(255, 255, 255, 0.9); border: 1px solid var(--dark-red-border); }
+        .text-annotation:focus { outline: none; }
+        .text-annotation.type-1:focus { border-color: var(--dark-blue-border); box-shadow: 0 0 0 2px rgba(0,0,139,0.3); }
+        .text-annotation.type-2:focus { border-color: var(--dark-red-border); box-shadow: 0 0 0 2px rgba(255,0,0,0.3); }
+        .text-annotation .delete-btn { position: absolute; top: -10px; right: -10px; width: 20px; height: 20px; background-color: #e74c3c; color: white; border: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; cursor: pointer; opacity: 0; transition: opacity 0.2s; z-index: 6; }
+        .text-annotation:hover .delete-btn { opacity: 1; }
+        .registration-info { position: absolute; top: 20px; right: 20px; width: 200px; background-color: rgba(255,255,255,0.8); padding: 10px; border-radius: 4px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); font-size: 14px; z-index: 10; word-wrap: break-word; border: 2px solid var(--dark-blue-border); color: var(--annotation-text-color); }
+        .registration-info p { margin: 5px 0; }
+        .signature-preview img { max-width: 100%; max-height: 100px; border: 1px solid var(--border-color); }
+        .signature-preview-text { color: #6c757d; font-style: italic; }
+        .admin-name { margin-top: 3px; font-weight: 500; border-top: 1px solid #eee; padding-top: 2px; text-align: right; line-height: 1.1; font-size: 13px; }
+        .signature-image { width: 45%; margin-top: 3px; margin-left: auto; display: block; }
+        .save-container { display: flex; justify-content: center; margin-top: 1rem; }
+        .loading-spinner { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); z-index: 10001; justify-content: center; align-items: center; }
+        .spinner { width: 50px; height: 50px; border: 5px solid #f3f3f3; border-top: 5px solid var(--primary-color); border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .hidden { display: none !important; }
+
+        @media (max-width: 768px) { .app-container { padding: 1rem; margin: 1rem auto; } .upload-section { flex-direction: column; text-align: center; padding: 1rem; } .upload-icon { margin-right: 0; margin-bottom: 0.5rem; } .pdf-header { flex-direction: column; gap: 1rem; } .file-info-controls-group { flex-direction: column; width: 100%; } .file-info { justify-content: center; } .header-actions { width: 100%; justify-content: center; margin-left: 0; } .file-name { max-width: 200px; } .pdf-viewer-container { padding: 1rem; } .a4-container { width: 100%; } .btn { padding: 0.6rem 1rem; } .pdf-controls { flex-direction: column; align-items: center; } .form-row { flex-direction: column; gap: 0.5rem; } .login-form { padding: 1.5rem; } }
+    </style>
+</head>
+<body>
+    <div class="app-wrapper">
+        <div class="login-container" id="login-container">
+            <form class="login-form" id="login-form-element">
+                <h2>เข้าสู่ระบบ</h2>
+                <div class="form-group">
+                    <label for="username">ชื่อผู้ใช้:</label>
+                    <input type="text" id="username" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">รหัสผ่าน:</label>
+                    <input type="password" id="password" class="form-control" required>
+                </div>
+                <button type="submit" class="btn primary-btn">เข้าสู่ระบบ</button>
+            </form>
+        </div>
+
+        <div class="app-container hidden" id="app-container">
+            <div class="header-top-controls">
+                <div id="user-info-display" class="user-info-display"></div>
+                <div style="display: flex; align-items: center;"> <!-- Wrapper div for buttons -->
+                    <button class="btn secondary-btn" id="goto-dashboard-btn" style="margin-right: 10px; display: none;"> <!-- Initially hidden -->
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" style="margin-right: 0.3rem;">
+                            <path d="M1.5 0A1.5 1.5 0 0 0 0 1.5v13A1.5 1.5 0 0 0 1.5 16h13a1.5 1.5 0 0 0 1.5-1.5v-13A1.5 1.5 0 0 0 14.5 0zM1 1.5a.5.5 0 0 1 .5-.5h13a.5.5 0 0 1 .5.5v13a.5.5 0 0 1-.5.5h-13a.5.5 0 0 1-.5-.5z"/>
+                            <path d="M5.07.316a.5.5 0 0 1 .487.023l4.992 2.5a.5.5 0 0 1 .002.868l-5.013 2.506a.5.5 0 0 1-.487-.023L.058 3.688a.5.5 0 0 1 .002-.868zm.97 1.188L9.513 3.5 5.533 5.513 1.562 3.5zm0 3.001L9.513 6.5 5.533 8.513 1.562 6.5zM15 5H8.5v1H15zm-2.5 3H6v1h6.5zm-4 3H4v1h2.5z"/>
+                        </svg>
+                        Dashboard
+                    </button>
+                    <button class="btn danger-btn" id="logout-btn">ออกจากระบบ</button>
+                </div>
+            </div>
+            <h1>PDF Viewer (บันทึกเป็นภาพ JPEG)</h1>
+
+            <div id="pdf-annotation-section">
+                <div class="upload-section" id="upload-area">
+                    <div class="upload-icon">📄</div>
+                    <div class="upload-text"><p>เลือกไฟล์ PDF เพื่อเปิดดู หรือลากไฟล์มาวางที่นี่</p></div>
+                    <input type="file" id="file-input" class="file-input" accept="application/pdf">
+                    <button class="btn primary-btn" id="upload-btn">เลือกไฟล์ PDF</button>
+                </div>
+
+                <div class="pdf-tool-content" id="pdf-tool-content-area">
+                    <div class="pdf-header">
+                        <div class="file-info-controls-group">
+                            <div class="file-info">
+                                <div class="file-icon">📄</div>
+                                <div class="file-name" id="file-name">ไม่มีไฟล์ที่เลือก</div>
+                            </div>
+                            <div class="header-actions">
+                                <div class="zoom-controls">
+                                    <button class="btn secondary-btn tooltip" id="zoom-out" data-tooltip="ย่อ" disabled><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M4 8a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7A.5.5 0 0 1 4 8z"/></svg></button>
+                                    <button class="btn secondary-btn" id="zoom-reset" disabled>100%</button>
+                                    <button class="btn secondary-btn tooltip" id="zoom-in" data-tooltip="ขยาย" disabled><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/></svg></button>
+                                </div>
+                                 <button class="btn danger-btn" id="close-btn" disabled><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/></svg> ปิดไฟล์</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="pdf-controls">
+                        <button class="btn secondary-btn" id="prev-page" disabled><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M11.354 1.646a.5.5 0 0 1 0 .708L5.707 8l5.647 5.646a.5.5 0 0 1-.708.708l-6-6a.5.5 0 0 1 0-.708l6-6a.5.5 0 0 1 .708 0z"/></svg> หน้าก่อนหน้า</button>
+                        <div class="page-info">หน้า <span id="page-num">-</span> จาก <span id="page-count">-</span></div>
+                        <button class="btn secondary-btn" id="next-page" disabled>หน้าถัดไป <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708z"/></svg></button>
+                        <button class="btn purple-btn" id="register-btn" disabled><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/></svg> ลงทะเบียนรับหนังสือ</button>
+                        <button class="btn green-btn" id="add-text-btn-1" disabled><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"/></svg> ธุรการเสนอหนังสือ</button>
+                        <button class="btn red-btn" id="add-text-btn-2" disabled><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"/></svg> ผู้อำนวยการลงนาม</button>
+                    </div>
+                    <div class="pdf-viewer-container">
+                        <div class="a4-container" id="a4-container">
+                            <div id="pdf-viewer">
+                                <div class="no-pdf-message"><div class="no-pdf-icon">📄</div><p>กรุณาเลือกไฟล์ PDF เพื่อแสดงผล</p></div>
+                            </div>
+                        </div>
+                        <div class="save-container">
+                            <button class="btn save-btn" id="save-data-btn" disabled><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/><path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/></svg> บันทึกข้อมูล</button>
+                        </div>
+                    </div>
+                </div>
+            </div> <!-- End pdf-annotation-section -->
+        </div> <!-- End app-container -->
+    </div> <!-- End app-wrapper -->
+
+    <!-- Modals -->
+    <div class="modal" id="registration-modal"><div class="modal-form"><h3 class="form-title">ลงทะเบียนรับหนังสือ</h3><div class="form-row"><div class="form-group"><label for="school-name">ชื่อโรงเรียน</label><input type="text" id="school-name" class="form-control" placeholder="ระบุชื่อโรงเรียน" readonly></div><div class="form-group"><label for="document-number">ที่</label><input type="text" id="document-number" class="form-control" placeholder="ระบุเลขที่หนังสือ"></div></div><div class="form-row"><div class="form-group"><label for="document-date">วันที่</label><input type="date" id="document-date" class="form-control"></div><div class="form-group"><label for="document-time">เวลา</label><input type="time" id="document-time" class="form-control"></div></div><div class="form-actions"><button class="btn secondary-btn" id="cancel-registration">ยกเลิก</button><button class="btn purple-btn" id="save-registration"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg> บันทึกข้อมูลรับหนังสือ</button></div></div></div>
+    <div class="modal" id="admin-modal"><div class="modal-form"><h3 class="form-title">ธุรการเสนอหนังสือ</h3><div class="form-group"><label for="admin-text">ข้อความเสนอ:</label><textarea id="admin-text" class="form-control" rows="5" placeholder="พิมพ์ข้อความเสนอหนังสือที่นี่..."></textarea></div><div class="form-group"><label for="proposal-type">เสนอเพื่อ</label><select id="proposal-type" class="form-control"><option value="เสนอเพื่อทราบ">เสนอเพื่อทราบ</option><option value="เสนอเพื่อพิจารณา">เสนอเพื่อพิจารณา</option></select></div><div class="form-group"><label for="delegation-text">เห็นควรมอบ:</label><input type="text" id="delegation-text" class="form-control" placeholder="ระบุผู้ที่ควรมอบหมาย..."></div><div class="form-group"><label for="admin-name-input">ชื่อผู้เสนอ</label><input type="text" id="admin-name-input" class="form-control" placeholder="ระบุชื่อผู้เสนอ" readonly></div><div class="form-actions"><button class="btn secondary-btn" id="cancel-admin">ยกเลิก</button><button class="btn green-btn" id="save-admin"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg> บันทึกข้อความเสนอ</button></div></div></div>
+    <div class="modal" id="director-modal"><div class="modal-form"><h3 class="form-title">ผู้อำนวยการลงนาม</h3><div class="form-group"><label for="director-text">ข้อความลงนาม:</label><textarea id="director-text" class="form-control" rows="5" placeholder="พิมพ์ข้อความลงนามที่นี่..."></textarea></div><div class="form-group"><label>ลายเซ็น:</label><div class="signature-preview" id="signature-preview"><span class="signature-preview-text">กำลังโหลดลายเซ็น...</span></div></div><div class="form-actions"><button class="btn secondary-btn" id="cancel-director">ยกเลิก</button><button class="btn red-btn" id="save-director"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg> บันทึกข้อความลงนาม</button></div></div></div>
+    <div class="loading-spinner" id="loading-spinner"><div class="spinner"></div></div>
+
+    <script>
+    // Store basic data fetched from sheet
+    let appBasicData = {
+        schoolName: 'N/A',
+        adminName: 'N/A',
+        signatureUrl: ''
+    };
+    const KEY_SCHOOL_NAME_JS = 'school'; // Must match keys in Apps Script
+    const KEY_ADMIN_NAME_JS = 'admin';
+    const KEY_SIGNATURE_URL_JS = 'signature';
+
+
+    document.addEventListener('DOMContentLoaded', function() {
+        let pdfDoc = null, pageNum = 1, pageRendering = false, pageNumPending = null;
+        let scale = 1.0, currentRenderTask = null, canvas = null, ctx = null;
+        let currentFile = null, annotations = {}, currentAnnotationId = 1;
+        let registrationInfo = null; // signatureImage will now come from appBasicData.signatureUrl
+
+        // --- DOM Elements ---
+        const loginContainer = document.getElementById('login-container');
+        const appContainer = document.getElementById('app-container');
+        const loginForm = document.getElementById('login-form-element');
+        const usernameInput = document.getElementById('username');
+        const passwordInput = document.getElementById('password');
+        const logoutBtn = document.getElementById('logout-btn');
+        const gotoDashboardBtn = document.getElementById('goto-dashboard-btn'); // Added for dashboard navigation
+        const userInfoDisplay = document.getElementById('user-info-display');
+
+        const pdfAnnotationSection = document.getElementById('pdf-annotation-section');
+        const pdfToolContentArea = document.getElementById('pdf-tool-content-area');
+        const uploadAreaEl = document.getElementById('upload-area');
+        const uploadBtn = document.getElementById('upload-btn');
+        const fileInput = document.getElementById('file-input');
+        const closeBtn = document.getElementById('close-btn');
+        const registerBtn = document.getElementById('register-btn');
+        const adminAnnotationBtn = document.getElementById('add-text-btn-1');
+        const directorAnnotationBtn = document.getElementById('add-text-btn-2');
+        const saveDataBtn = document.getElementById('save-data-btn');
+        const prevPageBtn = document.getElementById('prev-page');
+        const nextPageBtn = document.getElementById('next-page');
+        const zoomInBtn = document.getElementById('zoom-in');
+        const zoomOutBtn = document.getElementById('zoom-out');
+        const zoomResetBtn = document.getElementById('zoom-reset');
+        const fileNameEl = document.getElementById('file-name');
+        const pageNumEl = document.getElementById('page-num');
+        const pageCountEl = document.getElementById('page-count');
+        const pdfViewerEl = document.getElementById('pdf-viewer');
+        const loadingSpinner = document.getElementById('loading-spinner');
+
+        const cancelRegistrationBtn = document.getElementById('cancel-registration');
+        const cancelAdminBtn = document.getElementById('cancel-admin');
+        const cancelDirectorBtn = document.getElementById('cancel-director');
+        
+        const schoolNameInput = document.getElementById('school-name'); // Now readonly
+        const documentNumberInput = document.getElementById('document-number');
+        const documentDateInput = document.getElementById('document-date');
+        const documentTimeInput = document.getElementById('document-time');
+        
+        const adminTextInput = document.getElementById('admin-text');
+        const proposalTypeSelect = document.getElementById('proposal-type');
+        const delegationTextInput = document.getElementById('delegation-text');
+        const adminNameField = document.getElementById('admin-name-input'); // Changed ID from admin-name to admin-name-input
+        
+        const directorTextInput = document.getElementById('director-text');
+        const signaturePreviewEl = document.getElementById('signature-preview'); // No upload input now
+
+        // --- LOGIN AND UI MANAGEMENT ---
+        function fetchAndSetBasicData() {
+            showLoadingSpinner(true, "กำลังโหลดข้อมูลพื้นฐาน...");
+            return new Promise((resolve, reject) => {
+                google.script.run
+                    .withSuccessHandler(response => {
+                        showLoadingSpinner(false);
+                        if (response.error) {
+                            console.error("Error fetching basic data:", response.message);
+                            Swal.fire('ผิดพลาด', 'ไม่สามารถโหลดข้อมูลพื้นฐานของระบบได้: ' + response.message, 'error');
+                            reject(response.message);
+                        } else {
+                            appBasicData.schoolName = response.data[KEY_SCHOOL_NAME_JS] || 'N/A';
+                            appBasicData.adminName = response.data[KEY_ADMIN_NAME_JS] || 'N/A';
+                            appBasicData.signatureUrl = response.data[KEY_SIGNATURE_URL_JS] || '';
+                            
+                            if (schoolNameInput) schoolNameInput.value = appBasicData.schoolName;
+                            if (adminNameField) adminNameField.value = appBasicData.adminName;
+                            
+                            console.log("Basic data loaded:", appBasicData);
+                            resolve();
+                        }
+                    })
+                    .withFailureHandler(error => {
+                        showLoadingSpinner(false);
+                        console.error("Failure fetching basic data:", error);
+                        Swal.fire('ผิดพลาด', 'การเชื่อมต่อล้มเหลวขณะโหลดข้อมูลพื้นฐาน: ' + error.message, 'error');
+                        reject(error.message);
+                    })
+                    .getBasicData();
+            });
+        }
+
+
+        function checkLoginState() {
+            const user = JSON.parse(sessionStorage.getItem('currentUser'));
+            if (user && (user.role === 'admin' || user.role === 'director')) {
+                loginContainer.classList.add('hidden');
+                appContainer.classList.remove('hidden');
+                if(pdfAnnotationSection) pdfAnnotationSection.classList.remove('hidden');
+                if(userInfoDisplay) userInfoDisplay.textContent = `ผู้ใช้: ${user.username} (บทบาท: ${user.role})`;
+                if(gotoDashboardBtn) gotoDashboardBtn.style.display = 'inline-flex'; // Show dashboard button
+
+                fetchAndSetBasicData().then(() => {
+                    updateUIAccess(user.role, pdfDoc !== null);
+                }).catch(() => {
+                    updateUIAccess(user.role, pdfDoc !== null);
+                });
+
+            } else {
+                loginContainer.classList.remove('hidden');
+                appContainer.classList.add('hidden');
+                if(userInfoDisplay) userInfoDisplay.textContent = '';
+                if(gotoDashboardBtn) gotoDashboardBtn.style.display = 'none'; // Hide dashboard button
+                sessionStorage.removeItem('currentUser');
+                setInitialUIState();
+            }
+        }
+
+        function updateUIAccess(role, pdfLoaded = false) {
+            const pdfActionButtons = [
+                registerBtn, adminAnnotationBtn, directorAnnotationBtn, saveDataBtn,
+                prevPageBtn, nextPageBtn, zoomInBtn, zoomOutBtn, zoomResetBtn, closeBtn
+            ];
+            pdfActionButtons.forEach(btn => { if(btn) btn.disabled = true; });
+            if(uploadBtn) uploadBtn.disabled = false;
+
+            if (pdfLoaded) {
+                [prevPageBtn, nextPageBtn, zoomInBtn, zoomOutBtn, zoomResetBtn, closeBtn].forEach(btn => {
+                    if (btn) btn.disabled = false;
+                });
+                if(prevPageBtn) prevPageBtn.disabled = (pageNum <= 1);
+                if(nextPageBtn) nextPageBtn.disabled = (pageNum >= pdfDoc.numPages);
+
+                if (role === 'admin') {
+                    if(registerBtn) registerBtn.disabled = false;
+                    if(adminAnnotationBtn) adminAnnotationBtn.disabled = false;
+                    if(saveDataBtn) saveDataBtn.disabled = false;
+                } else if (role === 'director') {
+                    if(directorAnnotationBtn) directorAnnotationBtn.disabled = false;
+                    if(saveDataBtn) saveDataBtn.disabled = false;
+                }
+            }
+            if (schoolNameInput) schoolNameInput.value = appBasicData.schoolName;
+            if (adminNameField) adminNameField.value = appBasicData.adminName;
+        }
+
+        if(loginForm) {
+            loginForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                const usernameVal = usernameInput.value.trim();
+                const passwordVal = passwordInput.value.trim();
+                if (!usernameVal || !passwordVal) {
+                    Swal.fire('ข้อมูลไม่ครบถ้วน', 'กรุณากรอกชื่อผู้ใช้และรหัสผ่าน', 'warning');
+                    return;
+                }
+                showLoadingSpinner(true, 'กำลังตรวจสอบสิทธิ์...');
+                google.script.run
+                    .withSuccessHandler(response => {
+                        showLoadingSpinner(false);
+                        if (response.success && (response.role === 'admin' || response.role === 'director')) {
+                            sessionStorage.setItem('currentUser', JSON.stringify({ username: usernameVal, role: response.role }));
+                            checkLoginState(); 
+                            Swal.fire('สำเร็จ', 'เข้าสู่ระบบเรียบร้อย', 'success');
+                        } else {
+                            Swal.fire('ล้มเหลว', response.message || 'ชื่อผู้ใช้ รหัสผ่าน หรือบทบาทไม่ถูกต้อง', 'error');
+                            passwordInput.value = '';
+                        }
+                    })
+                    .withFailureHandler(error => {
+                        showLoadingSpinner(false);
+                        Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้: ' + error.message, 'error');
+                    })
+                    .authenticateUser(usernameVal, passwordVal);
+            });
+        }
+
+        if(logoutBtn) {
+            logoutBtn.addEventListener('click', function() {
+                sessionStorage.removeItem('currentUser');
+                closePDF();
+                if(gotoDashboardBtn) gotoDashboardBtn.style.display = 'none'; // Hide dashboard button on logout
+                checkLoginState();
+            });
+        }
+
+        if (gotoDashboardBtn) {
+            gotoDashboardBtn.addEventListener('click', function() {
+                showLoadingSpinner(true, "กำลังไปยัง Dashboard...");
+                google.script.run
+                    .withSuccessHandler(function(baseUrl) {
+                        if (!baseUrl) {
+                            showLoadingSpinner(false);
+                            Swal.fire('ข้อผิดพลาด', 'ไม่สามารถรับ Base URL ของแอปพลิเคชันได้', 'error');
+                            console.error("Failed to get base URL from server.");
+                            return;
+                        }
+                        console.log("Base URL from server (Index):", baseUrl);
+
+                        let cleanBaseUrl = baseUrl;
+                        if (cleanBaseUrl.includes('?')) {
+                            cleanBaseUrl = cleanBaseUrl.substring(0, cleanBaseUrl.indexOf('?'));
+                        }
+                        // Ensure it ends with /exec or /dev to properly form the new URL
+                        // This step might be redundant if ScriptApp.getService().getUrl() already gives the full /exec or /dev
+                        // But it's a safeguard.
+
+                        const dashboardUrl = cleanBaseUrl + '?page=dashboard';
+                        console.log("Navigating to Dashboard:", dashboardUrl);
+                        window.top.location.href = dashboardUrl;
+                        // No need to hide spinner, page will navigate
+                    })
+                    .withFailureHandler(function(error) {
+                        showLoadingSpinner(false);
+                        Swal.fire('ข้อผิดพลาด', 'เกิดข้อผิดพลาดในการเรียก Base URL: ' + error.message, 'error');
+                        console.error("Error fetching base URL:", error);
+                    })
+                    .getWebAppBaseUrl(); // Call the new Apps Script function
+            });
+        }
+
+        function setInitialUIState() {
+            if(pdfToolContentArea) pdfToolContentArea.style.display = 'flex';
+            if(uploadAreaEl) uploadAreaEl.style.display = 'flex';
+
+            const pdfActionButtons = [
+                prevPageBtn, nextPageBtn, zoomOutBtn, zoomResetBtn, zoomInBtn, closeBtn,
+                registerBtn, adminAnnotationBtn, directorAnnotationBtn, saveDataBtn
+            ];
+            pdfActionButtons.forEach(btn => { if (btn) btn.disabled = true; });
+            if(uploadBtn) uploadBtn.disabled = true;
+
+            if(pdfViewerEl) pdfViewerEl.innerHTML = `<div class="no-pdf-message"><div class="no-pdf-icon">📄</div><p>กรุณาเลือกไฟล์ PDF เพื่อแสดงผล</p></div>`;
+            if(fileNameEl) fileNameEl.textContent = 'ไม่มีไฟล์ที่เลือก';
+            if(pageNumEl) pageNumEl.textContent = '-';
+            if(pageCountEl) pageCountEl.textContent = '-';
+
+            if(gotoDashboardBtn) gotoDashboardBtn.style.display = 'none'; // Ensure dashboard button is hidden
+
+            const a4Container = document.getElementById('a4-container');
+            if (a4Container) {
+                const existingRegInfoEl = a4Container.querySelector('.registration-info');
+                if (existingRegInfoEl) existingRegInfoEl.remove();
+                a4Container.querySelectorAll('.text-annotation').forEach(anno => anno.remove());
+            }
+            const user = JSON.parse(sessionStorage.getItem('currentUser'));
+            if (user && (user.role === 'admin' || user.role === 'director')) {
+                 updateUIAccess(user.role, false);
+            } else {
+                 [...pdfActionButtons, uploadBtn].forEach(btn => { if (btn) btn.disabled = true; });
+            }
+        }
+        
+        setInitialUIState();
+        checkLoginState();
+
+        if(registerBtn) registerBtn.addEventListener('click', () => {
+            setDefaultDateTime();
+            if (schoolNameInput) schoolNameInput.value = appBasicData.schoolName;
+            document.getElementById('registration-modal').classList.add('active');
+        });
+
+        if(adminAnnotationBtn) adminAnnotationBtn.addEventListener('click', () => {
+            if (adminNameField) adminNameField.value = appBasicData.adminName;
+            document.getElementById('admin-modal').classList.add('active');
+        });
+        
+        if(directorAnnotationBtn) directorAnnotationBtn.addEventListener('click', () => {
+            console.log("Attempting to open director modal.");
+            console.log("Current appBasicData.signatureUrl:", appBasicData.signatureUrl);
+            if (signaturePreviewEl) {
+                if (appBasicData.signatureUrl && appBasicData.signatureUrl.trim() !== '') {
+                    signaturePreviewEl.innerHTML = `<img src="${appBasicData.signatureUrl}" alt="Signature Preview">`;
+                    console.log("Image tag set with src:", appBasicData.signatureUrl);
+                } else {
+                    signaturePreviewEl.innerHTML = '<span class="signature-preview-text">ไม่พบ URL ลายเซ็นใน basicData หรือ URL ว่างเปล่า</span>';
+                    console.log("Signature URL is missing or empty in appBasicData.");
+                }
+            } else {
+                console.error("signaturePreviewEl is not found!");
+            }
+            const directorModal = document.getElementById('director-modal');
+            if (directorModal) {
+                directorModal.classList.add('active');
+            } else {
+                console.error("Director modal element not found!");
+            }
+        });
+
+        if(uploadBtn) uploadBtn.addEventListener('click', () => { if(fileInput) fileInput.click(); });
+        if(fileInput) fileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file && file.type === 'application/pdf') {
+                const MAX_ORIGINAL_FILE_SIZE_BYTES = 20 * 1024 * 1024;
+                if (file.size > MAX_ORIGINAL_FILE_SIZE_BYTES) {
+                    Swal.fire('ไฟล์ใหญ่เกินไป', `ไฟล์ PDF (${Math.round(file.size/(1024*1024))}MB) ใหญ่กว่าที่แนะนำ (${Math.round(MAX_ORIGINAL_FILE_SIZE_BYTES/(1024*1024))}MB).`, 'warning');
+                }
+                loadPDFFile(file);
+            } else if (file) {
+                Swal.fire('ข้อผิดพลาด', 'กรุณาเลือกไฟล์ PDF เท่านั้น', 'error');
+                e.target.value = '';
+            }
+        });
+        if(closeBtn) closeBtn.addEventListener('click', closePDF);
+
+        if(cancelRegistrationBtn) cancelRegistrationBtn.addEventListener('click', () => { document.getElementById('registration-modal').classList.remove('active'); });
+        if(cancelAdminBtn) cancelAdminBtn.addEventListener('click', () => { document.getElementById('admin-modal').classList.remove('active'); });
+        if(cancelDirectorBtn) cancelDirectorBtn.addEventListener('click', () => { document.getElementById('director-modal').classList.remove('active'); });
+
+        if(document.getElementById('save-registration')) document.getElementById('save-registration').addEventListener('click', function(){
+            const schoolNameVal = schoolNameInput.value.trim();
+            const documentNumberVal = documentNumberInput.value.trim();
+            const documentDateVal = documentDateInput.value;
+            const documentTimeVal = documentTimeInput.value;
+            if (!schoolNameVal || !documentNumberVal || !documentDateVal || !documentTimeVal) { Swal.fire('ข้อมูลไม่ครบถ้วน', 'กรุณากรอกข้อมูลให้ครบถ้วน', 'warning'); return; }
+            const dateObj = new Date(documentDateVal);
+            const thaiDate = dateObj.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
+            registrationInfo = { schoolName: schoolNameVal, documentNumber: documentNumberVal, documentDate: thaiDate, documentTime: documentTimeVal };
+            displayRegistrationInfo();
+            document.getElementById('registration-modal').classList.remove('active');
+            Swal.fire('สำเร็จ', 'บันทึกข้อมูลรับหนังสือเรียบร้อยแล้ว', 'success');
+        });
+
+        if(document.getElementById('save-admin')) document.getElementById('save-admin').addEventListener('click', function(){
+            const text = adminTextInput.value.trim();
+            const proposalType = proposalTypeSelect.value;
+            const delegationText = delegationTextInput.value.trim();
+            const name = adminNameField.value.trim();
+            if (!text || !name) { Swal.fire('ข้อมูลไม่ครบถ้วน', 'กรุณากรอกข้อความเสนอ (ชื่อผู้เสนอมาจากระบบ)', 'warning'); return; }
+            let formattedText = `เรียน ผู้อำนวยการโรงเรียน\n\n${text}\n\n${proposalType}`;
+            if (delegationText) formattedText += `\n\nเห็นควรมอบ ${delegationText}`;
+            const container = document.getElementById('a4-container');
+            const x = Math.max(0, container.offsetWidth / 2 - 100);
+            const y = Math.max(0, container.offsetHeight / 2 - 50);
+            addTextAnnotation(formattedText, name, x, y, 1);
+            document.getElementById('admin-modal').classList.remove('active');
+            adminTextInput.value = ''; delegationTextInput.value = '';
+        });
+
+        if(document.getElementById('save-director')) document.getElementById('save-director').addEventListener('click', function(){
+            const text = directorTextInput.value.trim();
+            if (!text) { Swal.fire('ข้อมูลไม่ครบถ้วน', 'กรุณากรอกข้อความลงนาม', 'warning'); return; }
+            if (!appBasicData.signatureUrl) { Swal.fire('ข้อมูลไม่ครบถ้วน', 'ไม่พบ URL ลายเซ็นในระบบ (basicData)', 'warning'); return; }
+            const formattedText = `ทราบ\n\n${text}`;
+            const container = document.getElementById('a4-container');
+            const x = Math.max(0, container.offsetWidth / 2 - 100);
+            const y = Math.max(0, container.offsetHeight / 2 + 50);
+            addTextAnnotation(formattedText, null, x, y, 2, appBasicData.signatureUrl);
+            document.getElementById('director-modal').classList.remove('active');
+            directorTextInput.value = '';
+        });
+
+        if(saveDataBtn) saveDataBtn.addEventListener('click', function() {
+            if (!pdfDoc) { Swal.fire('ไม่พบไฟล์', 'กรุณาเปิดไฟล์ PDF ก่อนบันทึก', 'warning'); return; }
+            showLoadingSpinner(true, 'กำลังบันทึกข้อมูล...');
+            setTimeout(function() {
+                const containerToCapture = document.getElementById('a4-container');
+                html2canvas(containerToCapture, { scale: 2.0, useCORS: true, allowTaint: true, backgroundColor: '#ffffff', logging: false })
+                .then(function(capturedCanvas) {
+                    let annotatedImageData = capturedCanvas.toDataURL('image/jpeg', 1.0);
+                    const currentUser = JSON.parse(sessionStorage.getItem('currentUser'));
+                    const metadata = {
+                        schoolName: registrationInfo ? registrationInfo.schoolName : appBasicData.schoolName,
+                        documentNumber: registrationInfo ? registrationInfo.documentNumber : '',
+                        documentDate: registrationInfo ? registrationInfo.documentDate : '',
+                        documentTime: registrationInfo ? registrationInfo.documentTime : '',
+                        adminText: getAdminAnnotationText(), 
+                        adminName: getAdminAnnotationName() || appBasicData.adminName,
+                        directorText: getDirectorAnnotationText(),
+                        originalFileName: currentFile ? currentFile.name : 'N/A',
+                        outputMimeType: 'image/jpeg',
+                        user: currentUser ? currentUser.username : 'N/A',
+                        role: currentUser ? currentUser.role : 'N/A'
+                    };
+                    google.script.run
+                        .withSuccessHandler(function(response) {
+                            showLoadingSpinner(false);
+                            if (response.success) {
+                                Swal.fire({ title: 'สำเร็จ!', text: response.message, icon: 'success', confirmButtonText: 'ตกลง' })
+                                .then(() => { closePDF(); });
+                            } else { Swal.fire('ผิดพลาด!', 'Server error: ' + response.message, 'error'); }
+                        })
+                        .withFailureHandler(function(error) {
+                            showLoadingSpinner(false);
+                            Swal.fire('ผิดพลาด!', 'Communication error: ' + error.message, 'error');
+                        })
+                        .saveAnnotatedImageData(annotatedImageData, metadata);
+                }).catch(function(error) {
+                    showLoadingSpinner(false);
+                    Swal.fire('ผิดพลาด!', 'Canvas capture error: ' + error.message, 'error');
+                });
+            }, 100);
+        });
+
+        function getAdminAnnotationText() { return annotations[pageNum]?.find(a=>a.type===1)?.text || ''; }
+        function getAdminAnnotationName() { return annotations[pageNum]?.find(a=>a.type===1)?.adminName || ''; }
+        function getDirectorAnnotationText() { return annotations[pageNum]?.find(a=>a.type===2)?.text || ''; }
+
+        function loadPDFFile(file) {
+            currentFile = file;
+            showLoadingSpinner(true, 'กำลังโหลด PDF...');
+            const fileReaderArrayBuffer = new FileReader();
+            fileReaderArrayBuffer.onload = function() {
+                const typedarray = new Uint8Array(this.result);
+                loadPDF(typedarray);
+            };
+            fileReaderArrayBuffer.onerror = function() {
+                showLoadingSpinner(false);
+                Swal.fire('ข้อผิดพลาด', 'เกิดข้อผิดพลาดในการอ่านไฟล์ PDF', 'error');
+            };
+            fileReaderArrayBuffer.readAsArrayBuffer(file);
+        }
+        function loadPDF(data) {
+            if (currentRenderTask) { currentRenderTask.cancel(); currentRenderTask = null; }
+            if(pdfViewerEl) pdfViewerEl.innerHTML = ''; 
+            pdfjsLib.getDocument({ data: data }).promise.then(function(pdf) {
+                pdfDoc = pdf;
+                if(fileNameEl) fileNameEl.textContent = currentFile ? currentFile.name : 'N/A';
+                if(pageCountEl) pageCountEl.textContent = pdf.numPages;
+                if(pageNumEl) pageNumEl.textContent = '1';
+                canvas = document.createElement('canvas');
+                ctx = canvas.getContext('2d');
+                if(pdfViewerEl) pdfViewerEl.appendChild(canvas);
+                annotations = {};
+                for (let i = 1; i <= pdf.numPages; i++) annotations[i] = [];
+                pageNum = 1; scale = 1.0;
+                renderPage(pageNum); 
+                showLoadingSpinner(false);
+            }).catch(function(error) {
+                showLoadingSpinner(false);
+                console.error('Error loading PDF:', error);
+                Swal.fire('ข้อผิดพลาด', 'เกิดข้อผิดพลาดในการโหลด PDF: ' + error.message, 'error');
+                closePDF();
+            });
+        }
+        function renderPage(num) {
+            if (!pdfDoc) { return; }
+            if (pageRendering && currentRenderTask) { currentRenderTask.cancel(); }
+            pageRendering = true;
+            pdfDoc.getPage(num).then(function(page) {
+                const a4Container = document.getElementById('a4-container');
+                if (!a4Container || a4Container.offsetWidth === 0) {
+                    setTimeout(() => { pageRendering = false; renderPage(num); }, 150); return;
+                }
+                const containerWidth = a4Container.offsetWidth;
+                const viewportDefault = page.getViewport({ scale: 1 });
+                const scaleRequiredToFit = containerWidth / viewportDefault.width;
+                const viewport = page.getViewport({ scale: scaleRequiredToFit * scale });
+                if(canvas) { canvas.height = viewport.height; canvas.width = viewport.width; }
+                else { pageRendering = false; return; }
+                const renderContext = { canvasContext: ctx, viewport: viewport };
+                const task = page.render(renderContext);
+                currentRenderTask = task; currentRenderTask.pageIndex = page.pageIndex;
+                task.promise.then(function() {
+                    pageRendering = false; currentRenderTask = null;
+                    renderAnnotations(num);
+                    if (registrationInfo) displayRegistrationInfo();
+                    if (pageNumPending !== null) { const p = pageNumPending; pageNumPending = null; renderPage(p); }
+                    const user = JSON.parse(sessionStorage.getItem('currentUser'));
+                    if (user && (user.role === 'admin' || user.role === 'director')) {
+                        updateUIAccess(user.role, true);
+                    }
+                }).catch(function(err){
+                    pageRendering = false; currentRenderTask = null;
+                    if (err.name !== 'RenderingCancelledException') console.error(`Error rendering page ${num}: ${err.message}`);
+                });
+            }).catch(function(err){
+                 pageRendering = false; currentRenderTask = null;
+                 console.error(`Error getting page ${num}: ${err.message}`);
+            });
+            if(pageNumEl) pageNumEl.textContent = num;
+        }
+        function displayRegistrationInfo() {
+             if (!registrationInfo || !document.getElementById('a4-container')) return;
+            const a4Cont = document.getElementById('a4-container');
+            let existingInfo = a4Cont.querySelector('.registration-info');
+            if (existingInfo) existingInfo.remove();
+            const infoElement = document.createElement('div');
+            infoElement.className = 'registration-info';
+            infoElement.innerHTML = `<p><strong>โรงเรียน:</strong> ${registrationInfo.schoolName}</p><p><strong>ที่:</strong> ${registrationInfo.documentNumber}</p><p><strong>วันที่:</strong> ${registrationInfo.documentDate}</p><p><strong>เวลา:</strong> ${registrationInfo.documentTime} น.</p>`;
+            a4Cont.appendChild(infoElement);
+        }
+        function renderAnnotations(pageNumber) {
+            const a4Container = document.getElementById('a4-container');
+            if (!a4Container) return;
+            a4Container.querySelectorAll('.text-annotation').forEach(anno => anno.remove());
+            if (annotations[pageNumber]) annotations[pageNumber].forEach(createAnnotationElement);
+        }
+        function createAnnotationElement(annotation) {
+            const container = document.getElementById('a4-container'); if(!container) return;
+            const el = document.createElement('div'); el.className = `text-annotation type-${annotation.type}`;
+            el.setAttribute('data-id', annotation.id); el.style.left = annotation.x + 'px'; el.style.top = annotation.y + 'px';
+            const textDiv = document.createElement('div'); textDiv.setAttribute('contenteditable', 'true');
+            textDiv.style.whiteSpace = 'pre-wrap'; textDiv.textContent = annotation.text; el.appendChild(textDiv);
+            if (annotation.adminName) { const nameDiv = document.createElement('div'); nameDiv.className = 'admin-name'; nameDiv.textContent = annotation.adminName; el.appendChild(nameDiv); }
+            const delBtn = document.createElement('button'); delBtn.className = 'delete-btn';
+            delBtn.innerHTML = '×'; delBtn.onclick = (e) => { e.stopPropagation(); deleteAnnotation(annotation.id); }; el.appendChild(delBtn);
+            if (annotation.signature) { const sigImg = document.createElement('img'); sigImg.src = annotation.signature; sigImg.className = 'signature-image'; el.appendChild(sigImg); }
+            makeElementDraggable(el); textDiv.onblur = function() { updateAnnotationText(annotation.id, this.textContent); }; container.appendChild(el);
+        }
+        function makeElementDraggable(element) {
+            let p1=0,p2=0,p3=0,p4=0; element.onmousedown=dragMD;
+            function dragMD(e){e=e||window.event;if(e.target.className==='delete-btn'||e.target.getAttribute('contenteditable')==='true')return;e.preventDefault();p3=e.clientX;p4=e.clientY;document.onmouseup=closeDrag;document.onmousemove=elDrag;}
+            function elDrag(e){e=e||window.event;e.preventDefault();p1=p3-e.clientX;p2=p4-e.clientY;p3=e.clientX;p4=e.clientY;const r=element.parentElement.getBoundingClientRect();let t=element.offsetTop-p2,l=element.offsetLeft-p1;t=Math.max(0,Math.min(t,r.height-element.offsetHeight));l=Math.max(0,Math.min(l,r.width-element.offsetWidth));element.style.top=t+"px";element.style.left=l+"px";}
+            function closeDrag(){document.onmouseup=null;document.onmousemove=null;updateAnnotationPosition(parseInt(element.getAttribute('data-id')),element.offsetLeft,element.offsetTop);}
+        }
+        function addTextAnnotation(text,adminName,x,y,type,signature=null){
+            const ann={id:currentAnnotationId++,text,adminName,x,y,page:pageNum,type,signature};if(!annotations[pageNum])annotations[pageNum]=[];annotations[pageNum].push(ann);createAnnotationElement(ann);return ann.id;
+        }
+        function updateAnnotationText(id,text){
+            const ann=annotations[pageNum]?.find(a=>a.id===id);if(ann)ann.text=text;
+        }
+        function updateAnnotationPosition(id,x,y){
+            const ann=annotations[pageNum]?.find(a=>a.id===id);if(ann){ann.x=x;ann.y=y;}
+        }
+        function deleteAnnotation(id){
+            if(annotations[pageNum])annotations[pageNum]=annotations[pageNum].filter(a=>a.id!==id);const el=document.querySelector(`.text-annotation[data-id="${id}"]`);if(el)el.remove();
+        }
+        function queueRenderPage(num){
+            if(pageRendering){pageNumPending=num;if(currentRenderTask)currentRenderTask.cancel();}else{renderPage(num);}
+        }
+        function closePDF() {
+            if (currentRenderTask) { currentRenderTask.cancel(); currentRenderTask = null; }
+            pdfDoc = null; pageNum = 1; scale = 1.0; currentFile = null;
+            annotations = {}; currentAnnotationId = 1;
+            registrationInfo = null;
+            if(schoolNameInput) schoolNameInput.value = appBasicData.schoolName;
+            if(documentNumberInput) documentNumberInput.value = '';
+            if(fileInput) fileInput.value = '';
+            setInitialUIState();
+            setDefaultDateTime();
+        }
+        if(prevPageBtn) prevPageBtn.addEventListener('click', function(){if(!pdfDoc||pageNum<=1)return;pageNum--;queueRenderPage(pageNum);});
+        if(nextPageBtn) nextPageBtn.addEventListener('click', function(){if(!pdfDoc||pageNum>=pdfDoc.numPages)return;pageNum++;queueRenderPage(pageNum);});
+        if(zoomInBtn) zoomInBtn.addEventListener('click', function(){if(!pdfDoc)return;scale=Math.min(3.0,scale+0.2);renderPage(pageNum);});
+        if(zoomOutBtn) zoomOutBtn.addEventListener('click', function(){if(!pdfDoc)return;scale=Math.max(0.2,scale-0.2);renderPage(pageNum);});
+        if(zoomResetBtn) zoomResetBtn.addEventListener('click', function(){if(!pdfDoc)return;scale=1.0;renderPage(pageNum);});
+        window.addEventListener('resize', function() {
+            const user = JSON.parse(sessionStorage.getItem('currentUser'));
+            if (pdfDoc && user && (user.role === 'admin' || user.role === 'director') && pdfAnnotationSection && !pdfAnnotationSection.classList.contains('hidden')) {
+                clearTimeout(window.resizeTimeout);
+                window.resizeTimeout = setTimeout(() => renderPage(pageNum), 250);
+            }
+        });
+        if(uploadAreaEl) {
+            uploadAreaEl.addEventListener('dragover', function(e) { e.preventDefault(); uploadAreaEl.style.backgroundColor = 'rgba(106, 17, 203, 0.15)'; });
+            uploadAreaEl.addEventListener('dragleave', function() { uploadAreaEl.style.backgroundColor = 'rgba(106, 17, 203, 0.05)'; });
+            uploadAreaEl.addEventListener('drop', function(e) {
+                e.preventDefault(); uploadAreaEl.style.backgroundColor = 'rgba(106, 17, 203, 0.05)';
+                const file = e.dataTransfer.files[0];
+                if (file && file.type === 'application/pdf') {
+                    const MAX_ORIGINAL_FILE_SIZE_BYTES = 20 * 1024 * 1024;
+                    if (file.size > MAX_ORIGINAL_FILE_SIZE_BYTES) {
+                        Swal.fire('ไฟล์ใหญ่เกินไป',`ไฟล์ PDF (${Math.round(file.size/(1024*1024))}MB) ใหญ่กว่าที่แนะนำ (${Math.round(MAX_ORIGINAL_FILE_SIZE_BYTES/(1024*1024))}MB).`,'warning');
+                    }
+                    loadPDFFile(file);
+                } else if (file) { Swal.fire('ข้อผิดพลาด','กรุณาเลือกไฟล์ PDF เท่านั้น','error'); }
+            });
+        }
+        function setDefaultDateTime() {
+            const now=new Date(),currentDate=now.toISOString().split('T')[0],h=String(now.getHours()).padStart(2,'0'),m=String(now.getMinutes()).padStart(2,'0'),currentTime=`${h}:${m}`;
+            if(documentDateInput) documentDateInput.value=currentDate;
+            if(documentTimeInput) documentTimeInput.value=currentTime;
+        }
+        function showLoadingSpinner(show, message = "กำลังโหลด...") {
+            if (loadingSpinner) {
+                loadingSpinner.style.display = show ? 'flex' : 'none';
+                // Optionally, add message display to the spinner
+                // const spinnerMessage = loadingSpinner.querySelector('.spinner-message');
+                // if (spinnerMessage) spinnerMessage.textContent = message;
+            }
+        }
+    });
+    </script>
+</body>
+</html>
