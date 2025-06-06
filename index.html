@@ -235,30 +235,35 @@
 
 <script>
     // ===================================================================
-    // --- ⚙️ CONFIGURATION & NEW API HANDLER ---
+    // --- ⚙️ CONFIGURATION & GLOBAL HELPERS ---
     // ===================================================================
 
-    //  ***** วาง URL /exec ของคุณที่ได้จากการ Deploy ที่นี่ *****
+    // ***** วาง URL /exec ของคุณที่ได้จากการ Deploy ที่นี่ *****
     const GOOGLE_SCRIPT_API_URL = 'https://script.google.com/macros/s/AKfycbzlWVOnd5Y7cHJfrsY-Twik17XjeaVHJ7sb8nTXQQWB3Wp9TpR8izTGyHeerQOTMhHc_g/exec';
+
+    // 1. ย้ายฟังก์ชันออกมาอยู่ข้างนอก (Global Scope)
+    function showLoadingSpinner(show, message = "กำลังโหลด...") {
+        const loadingSpinner = document.getElementById('loading-spinner');
+        if (loadingSpinner) {
+            loadingSpinner.style.display = show ? 'flex' : 'none';
+        }
+    }
 
     /**
      * Calls the Google Apps Script API endpoint.
      * This function replaces all 'google.script.run' calls.
-     * @param {string} action - The name of the function to run in the backend.
-     * @param {object} payload - The data to send to the backend function.
-     * @returns {Promise<object>} - A promise that resolves with the response from the API.
      */
     async function callApi(action, payload = {}) {
         showLoadingSpinner(true, 'กำลังเชื่อมต่อ...');
         try {
             const response = await fetch(GOOGLE_SCRIPT_API_URL, {
                 method: 'POST',
-                mode: 'cors', // Enable Cross-Origin Resource Sharing
+                mode: 'cors',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({ action, payload }),
-                redirect: 'follow' // Follow redirects, important for Apps Script
+                redirect: 'follow'
             });
 
             if (!response.ok) {
@@ -273,11 +278,9 @@
         } catch (error) {
             console.error('Error calling API:', error);
             showLoadingSpinner(false);
-            // Re-throw the error to be caught by the calling function's .catch() block
-            throw error; 
+            throw error;
         }
     }
-
 
     // ===================================================================
     // --- YOUR ORIGINAL SCRIPT (with modifications) ---
@@ -293,14 +296,13 @@
     const KEY_ADMIN_NAME_JS = 'admin';
     const KEY_SIGNATURE_URL_JS = 'signature';
 
-
     document.addEventListener('DOMContentLoaded', function() {
         let pdfDoc = null, pageNum = 1, pageRendering = false, pageNumPending = null;
         let scale = 1.0, currentRenderTask = null, canvas = null, ctx = null;
         let currentFile = null, annotations = {}, currentAnnotationId = 1;
         let registrationInfo = null;
 
-        // --- DOM Elements (no changes needed here) ---
+        // --- DOM Elements ---
         const loginContainer = document.getElementById('login-container');
         const appContainer = document.getElementById('app-container');
         const loginForm = document.getElementById('login-form-element');
@@ -309,12 +311,41 @@
         const logoutBtn = document.getElementById('logout-btn');
         const gotoDashboardBtn = document.getElementById('goto-dashboard-btn');
         const userInfoDisplay = document.getElementById('user-info-display');
+        const pdfAnnotationSection = document.getElementById('pdf-annotation-section');
+        const pdfToolContentArea = document.getElementById('pdf-tool-content-area');
+        const uploadAreaEl = document.getElementById('upload-area');
+        const uploadBtn = document.getElementById('upload-btn');
+        const fileInput = document.getElementById('file-input');
+        const closeBtn = document.getElementById('close-btn');
+        const registerBtn = document.getElementById('register-btn');
+        const adminAnnotationBtn = document.getElementById('add-text-btn-1');
+        const directorAnnotationBtn = document.getElementById('add-text-btn-2');
         const saveDataBtn = document.getElementById('save-data-btn');
-        const schoolNameInput = document.getElementById('school-name');
-        const adminNameField = document.getElementById('admin-name-input');
-        const signaturePreviewEl = document.getElementById('signature-preview');
-        // ... and all other DOM element variables
+        const prevPageBtn = document.getElementById('prev-page');
+        const nextPageBtn = document.getElementById('next-page');
+        const zoomInBtn = document.getElementById('zoom-in');
+        const zoomOutBtn = document.getElementById('zoom-out');
+        const zoomResetBtn = document.getElementById('zoom-reset');
+        const fileNameEl = document.getElementById('file-name');
+        const pageNumEl = document.getElementById('page-num');
+        const pageCountEl = document.getElementById('page-count');
+        const pdfViewerEl = document.getElementById('pdf-viewer');
+        // loadingSpinner variable is no longer needed here as it's accessed directly in the global function
 
+        const cancelRegistrationBtn = document.getElementById('cancel-registration');
+        const cancelAdminBtn = document.getElementById('cancel-admin');
+        const cancelDirectorBtn = document.getElementById('cancel-director');
+        const schoolNameInput = document.getElementById('school-name');
+        const documentNumberInput = document.getElementById('document-number');
+        const documentDateInput = document.getElementById('document-date');
+        const documentTimeInput = document.getElementById('document-time');
+        const adminTextInput = document.getElementById('admin-text');
+        const proposalTypeSelect = document.getElementById('proposal-type');
+        const delegationTextInput = document.getElementById('delegation-text');
+        const adminNameField = document.getElementById('admin-name-input');
+        const directorTextInput = document.getElementById('director-text');
+        const signaturePreviewEl = document.getElementById('signature-preview');
+        
         // --- LOGIN AND UI MANAGEMENT (MODIFIED) ---
         function fetchAndSetBasicData() {
             return new Promise((resolve, reject) => {
@@ -325,9 +356,9 @@
                             Swal.fire('ผิดพลาด', 'ไม่สามารถโหลดข้อมูลพื้นฐานของระบบได้: ' + response.message, 'error');
                             reject(response.message);
                         } else {
-                            appBasicData.schoolName = response.data[KEY_SCHOOL_NAME_JS] || 'N/A';
-                            appBasicData.adminName = response.data[KEY_ADMIN_NAME_JS] || 'N/A';
-                            appBasicData.signatureUrl = response.data[KEY_SIGNATURE_URL_JS] || '';
+                            appBasicData.schoolName = response.data.school || 'N/A';
+                            appBasicData.adminName = response.data.admin || 'N/A';
+                            appBasicData.signatureUrl = response.data.signature || '';
                             
                             if (schoolNameInput) schoolNameInput.value = appBasicData.schoolName;
                             if (adminNameField) adminNameField.value = appBasicData.adminName;
@@ -337,14 +368,64 @@
                         }
                     })
                     .catch(error => {
-                        console.error("Failure fetching basic data:", error);
                         Swal.fire('ผิดพลาด', 'การเชื่อมต่อล้มเหลวขณะโหลดข้อมูลพื้นฐาน: ' + error.message, 'error');
                         reject(error.message);
                     });
             });
         }
+        
+        function checkLoginState() {
+            const user = JSON.parse(sessionStorage.getItem('currentUser'));
+            if (user && (user.role === 'admin' || user.role === 'director')) {
+                loginContainer.classList.add('hidden');
+                appContainer.classList.remove('hidden');
+                if(pdfAnnotationSection) pdfAnnotationSection.classList.remove('hidden');
+                if(userInfoDisplay) userInfoDisplay.textContent = `ผู้ใช้: ${user.username} (บทบาท: ${user.role})`;
+                if(gotoDashboardBtn) gotoDashboardBtn.style.display = 'inline-flex';
 
-        // ... (checkLoginState and updateUIAccess functions are OK, no changes needed) ...
+                fetchAndSetBasicData().then(() => {
+                    updateUIAccess(user.role, pdfDoc !== null);
+                }).catch(() => {
+                    updateUIAccess(user.role, pdfDoc !== null);
+                });
+
+            } else {
+                loginContainer.classList.remove('hidden');
+                appContainer.classList.add('hidden');
+                if(userInfoDisplay) userInfoDisplay.textContent = '';
+                if(gotoDashboardBtn) gotoDashboardBtn.style.display = 'none';
+                sessionStorage.removeItem('currentUser');
+                setInitialUIState();
+            }
+        }
+        
+        function updateUIAccess(role, pdfLoaded = false) {
+            const pdfActionButtons = [
+                registerBtn, adminAnnotationBtn, directorAnnotationBtn, saveDataBtn,
+                prevPageBtn, nextPageBtn, zoomInBtn, zoomOutBtn, zoomResetBtn, closeBtn
+            ];
+            pdfActionButtons.forEach(btn => { if(btn) btn.disabled = true; });
+            if(uploadBtn) uploadBtn.disabled = false;
+
+            if (pdfLoaded) {
+                [prevPageBtn, nextPageBtn, zoomInBtn, zoomOutBtn, zoomResetBtn, closeBtn].forEach(btn => {
+                    if (btn) btn.disabled = false;
+                });
+                if(prevPageBtn) prevPageBtn.disabled = (pageNum <= 1);
+                if(nextPageBtn) nextPageBtn.disabled = (pageNum >= pdfDoc.numPages);
+
+                if (role === 'admin') {
+                    if(registerBtn) registerBtn.disabled = false;
+                    if(adminAnnotationBtn) adminAnnotationBtn.disabled = false;
+                    if(saveDataBtn) saveDataBtn.disabled = false;
+                } else if (role === 'director') {
+                    if(directorAnnotationBtn) directorAnnotationBtn.disabled = false;
+                    if(saveDataBtn) saveDataBtn.disabled = false;
+                }
+            }
+            if (schoolNameInput) schoolNameInput.value = appBasicData.schoolName;
+            if (adminNameField) adminNameField.value = appBasicData.adminName;
+        }
 
         if(loginForm) {
             loginForm.addEventListener('submit', function(e) {
@@ -356,9 +437,6 @@
                     return;
                 }
                 
-                // === MODIFICATION HERE ===
-                // OLD: google.script.run...
-                // NEW: callApi(...)
                 callApi('authenticateUser', { username: usernameVal, password: passwordVal })
                     .then(response => {
                         if (response.success && (response.role === 'admin' || response.role === 'director')) {
@@ -376,18 +454,154 @@
             });
         }
 
-        // ... (logoutBtn is OK) ...
+        if(logoutBtn) {
+            logoutBtn.addEventListener('click', function() {
+                sessionStorage.removeItem('currentUser');
+                closePDF();
+                if(gotoDashboardBtn) gotoDashboardBtn.style.display = 'none';
+                checkLoginState();
+            });
+        }
         
-        // The goto-dashboard-btn will no longer work this way because it's on a different domain.
-        // You will need a separate HTML file for the dashboard on your GitHub pages.
         if (gotoDashboardBtn) {
            gotoDashboardBtn.addEventListener('click', function() {
               // This should now navigate to your dashboard page on GitHub, e.g.,
-              window.top.location.href = './dashboard.html'; // Or whatever you name it
+              // You need to create a separate dashboard.html file on your GitHub repo
+              Swal.fire('แจ้งเตือน', 'ส่วน Dashboard กำลังอยู่ระหว่างการพัฒนา');
+              // window.top.location.href = './dashboard.html'; 
            });
         }
         
-        // ... (All other event listeners and functions are mostly OK, but the one that saves data needs changing) ...
+        function setInitialUIState() {
+            if(pdfToolContentArea) pdfToolContentArea.style.display = 'flex';
+            if(uploadAreaEl) uploadAreaEl.style.display = 'flex';
+
+            const pdfActionButtons = [
+                prevPageBtn, nextPageBtn, zoomOutBtn, zoomResetBtn, zoomInBtn, closeBtn,
+                registerBtn, adminAnnotationBtn, directorAnnotationBtn, saveDataBtn
+            ];
+            pdfActionButtons.forEach(btn => { if (btn) btn.disabled = true; });
+            if(uploadBtn) uploadBtn.disabled = true;
+
+            if(pdfViewerEl) pdfViewerEl.innerHTML = `<div class="no-pdf-message"><div class="no-pdf-icon">📄</div><p>กรุณาเลือกไฟล์ PDF เพื่อแสดงผล</p></div>`;
+            if(fileNameEl) fileNameEl.textContent = 'ไม่มีไฟล์ที่เลือก';
+            if(pageNumEl) pageNumEl.textContent = '-';
+            if(pageCountEl) pageCountEl.textContent = '-';
+
+            if(gotoDashboardBtn) gotoDashboardBtn.style.display = 'none';
+
+            const a4Container = document.getElementById('a4-container');
+            if (a4Container) {
+                const existingRegInfoEl = a4Container.querySelector('.registration-info');
+                if (existingRegInfoEl) existingRegInfoEl.remove();
+                a4Container.querySelectorAll('.text-annotation').forEach(anno => anno.remove());
+            }
+            const user = JSON.parse(sessionStorage.getItem('currentUser'));
+            if (user && (user.role === 'admin' || user.role === 'director')) {
+                 updateUIAccess(user.role, false);
+            } else {
+                 [...pdfActionButtons, uploadBtn].forEach(btn => { if (btn) btn.disabled = true; });
+            }
+        }
+        
+        setInitialUIState();
+        checkLoginState();
+
+        if(registerBtn) registerBtn.addEventListener('click', () => {
+            setDefaultDateTime();
+            if (schoolNameInput) schoolNameInput.value = appBasicData.schoolName;
+            document.getElementById('registration-modal').classList.add('active');
+        });
+
+        if(adminAnnotationBtn) adminAnnotationBtn.addEventListener('click', () => {
+            if (adminNameField) adminNameField.value = appBasicData.adminName;
+            document.getElementById('admin-modal').classList.add('active');
+        });
+        
+        if(directorAnnotationBtn) directorAnnotationBtn.addEventListener('click', () => {
+            console.log("Attempting to open director modal.");
+            console.log("Current appBasicData.signatureUrl:", appBasicData.signatureUrl);
+            if (signaturePreviewEl) {
+                if (appBasicData.signatureUrl && appBasicData.signatureUrl.trim() !== '') {
+                    signaturePreviewEl.innerHTML = `<img src="${appBasicData.signatureUrl}" alt="Signature Preview">`;
+                    console.log("Image tag set with src:", appBasicData.signatureUrl);
+                } else {
+                    signaturePreviewEl.innerHTML = '<span class="signature-preview-text">ไม่พบ URL ลายเซ็นใน basicData หรือ URL ว่างเปล่า</span>';
+                    console.log("Signature URL is missing or empty in appBasicData.");
+                }
+            } else {
+                console.error("signaturePreviewEl is not found!");
+            }
+            const directorModal = document.getElementById('director-modal');
+            if (directorModal) {
+                directorModal.classList.add('active');
+            } else {
+                console.error("Director modal element not found!");
+            }
+        });
+
+        if(uploadBtn) uploadBtn.addEventListener('click', () => { if(fileInput) fileInput.click(); });
+        if(fileInput) fileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file && file.type === 'application/pdf') {
+                const MAX_ORIGINAL_FILE_SIZE_BYTES = 20 * 1024 * 1024;
+                if (file.size > MAX_ORIGINAL_FILE_SIZE_BYTES) {
+                    Swal.fire('ไฟล์ใหญ่เกินไป', `ไฟล์ PDF (${Math.round(file.size/(1024*1024))}MB) ใหญ่กว่าที่แนะนำ (${Math.round(MAX_ORIGINAL_FILE_SIZE_BYTES/(1024*1024))}MB).`, 'warning');
+                }
+                loadPDFFile(file);
+            } else if (file) {
+                Swal.fire('ข้อผิดพลาด', 'กรุณาเลือกไฟล์ PDF เท่านั้น', 'error');
+                e.target.value = '';
+            }
+        });
+        if(closeBtn) closeBtn.addEventListener('click', closePDF);
+
+        if(cancelRegistrationBtn) cancelRegistrationBtn.addEventListener('click', () => { document.getElementById('registration-modal').classList.remove('active'); });
+        if(cancelAdminBtn) cancelAdminBtn.addEventListener('click', () => { document.getElementById('admin-modal').classList.remove('active'); });
+        if(cancelDirectorBtn) cancelDirectorBtn.addEventListener('click', () => { document.getElementById('director-modal').classList.remove('active'); });
+
+        if(document.getElementById('save-registration')) document.getElementById('save-registration').addEventListener('click', function(){
+            const schoolNameVal = schoolNameInput.value.trim();
+            const documentNumberVal = documentNumberInput.value.trim();
+            const documentDateVal = documentDateInput.value;
+            const documentTimeVal = documentTimeInput.value;
+            if (!schoolNameVal || !documentNumberVal || !documentDateVal || !documentTimeVal) { Swal.fire('ข้อมูลไม่ครบถ้วน', 'กรุณากรอกข้อมูลให้ครบถ้วน', 'warning'); return; }
+            const dateObj = new Date(documentDateVal);
+            const thaiDate = dateObj.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
+            registrationInfo = { schoolName: schoolNameVal, documentNumber: documentNumberVal, documentDate: thaiDate, documentTime: documentTimeVal };
+            displayRegistrationInfo();
+            document.getElementById('registration-modal').classList.remove('active');
+            Swal.fire('สำเร็จ', 'บันทึกข้อมูลรับหนังสือเรียบร้อยแล้ว', 'success');
+        });
+
+        if(document.getElementById('save-admin')) document.getElementById('save-admin').addEventListener('click', function(){
+            const text = adminTextInput.value.trim();
+            const proposalType = proposalTypeSelect.value;
+            const delegationText = delegationTextInput.value.trim();
+            const name = adminNameField.value.trim();
+            if (!text || !name) { Swal.fire('ข้อมูลไม่ครบถ้วน', 'กรุณากรอกข้อความเสนอ (ชื่อผู้เสนอมาจากระบบ)', 'warning'); return; }
+            let formattedText = `เรียน ผู้อำนวยการโรงเรียน\n\n${text}\n\n${proposalType}`;
+            if (delegationText) formattedText += `\n\nเห็นควรมอบ ${delegationText}`;
+            const container = document.getElementById('a4-container');
+            const x = Math.max(0, container.offsetWidth / 2 - 100);
+            const y = Math.max(0, container.offsetHeight / 2 - 50);
+            addTextAnnotation(formattedText, name, x, y, 1);
+            document.getElementById('admin-modal').classList.remove('active');
+            adminTextInput.value = ''; delegationTextInput.value = '';
+        });
+
+        if(document.getElementById('save-director')) document.getElementById('save-director').addEventListener('click', function(){
+            const text = directorTextInput.value.trim();
+            if (!text) { Swal.fire('ข้อมูลไม่ครบถ้วน', 'กรุณากรอกข้อความลงนาม', 'warning'); return; }
+            if (!appBasicData.signatureUrl) { Swal.fire('ข้อมูลไม่ครบถ้วน', 'ไม่พบ URL ลายเซ็นในระบบ (basicData)', 'warning'); return; }
+            const formattedText = `ทราบ\n\n${text}`;
+            const container = document.getElementById('a4-container');
+            const x = Math.max(0, container.offsetWidth / 2 - 100);
+            const y = Math.max(0, container.offsetHeight / 2 + 50);
+            addTextAnnotation(formattedText, null, x, y, 2, appBasicData.signatureUrl);
+            document.getElementById('director-modal').classList.remove('active');
+            directorTextInput.value = '';
+        });
         
         if(saveDataBtn) saveDataBtn.addEventListener('click', function() {
             if (!pdfDoc) { Swal.fire('ไม่พบไฟล์', 'กรุณาเปิดไฟล์ PDF ก่อนบันทึก', 'warning'); return; }
@@ -411,9 +625,6 @@
                     role: currentUser ? currentUser.role : 'N/A'
                 };
 
-                // === MODIFICATION HERE ===
-                // OLD: google.script.run...
-                // NEW: callApi(...)
                 callApi('saveAnnotatedImageData', { annotatedImageData: annotatedImageData, metadata: metadata })
                     .then(response => {
                         if (response.success) {
@@ -432,18 +643,195 @@
                 Swal.fire('ผิดพลาด!', 'Canvas capture error: ' + error.message, 'error');
             });
         });
-        
-        // Keep the rest of your functions (loadPDF, renderPage, etc.) as they are.
-        // The function 'showLoadingSpinner' is now called inside 'callApi'.
-        
-        // You can copy the rest of your original JavaScript from here downwards.
-        // Make sure you have all the functions like 'checkLoginState', 'updateUIAccess', etc.
-        // The provided code snippet above only shows the critical parts that need modification.
-        // You should merge this with your full original script.
-    });
 
-    // PASTE THE REST OF YOUR ORIGINAL JAVASCRIPT LOGIC HERE
-    // (e.g., all the other functions like checkLoginState, updateUIAccess, setInitialUIState, loadPDFFile, renderPage, etc.)
+        function getAdminAnnotationText() { return annotations[pageNum]?.find(a=>a.type===1)?.text || ''; }
+        function getAdminAnnotationName() { return annotations[pageNum]?.find(a=>a.type===1)?.adminName || ''; }
+        function getDirectorAnnotationText() { return annotations[pageNum]?.find(a=>a.type===2)?.text || ''; }
+
+        function loadPDFFile(file) {
+            currentFile = file;
+            showLoadingSpinner(true, 'กำลังโหลด PDF...');
+            const fileReaderArrayBuffer = new FileReader();
+            fileReaderArrayBuffer.onload = function() {
+                const typedarray = new Uint8Array(this.result);
+                loadPDF(typedarray);
+            };
+            fileReaderArrayBuffer.onerror = function() {
+                showLoadingSpinner(false);
+                Swal.fire('ข้อผิดพลาด', 'เกิดข้อผิดพลาดในการอ่านไฟล์ PDF', 'error');
+            };
+            fileReaderArrayBuffer.readAsArrayBuffer(file);
+        }
+
+        function loadPDF(data) {
+            if (currentRenderTask) { currentRenderTask.cancel(); currentRenderTask = null; }
+            if(pdfViewerEl) pdfViewerEl.innerHTML = ''; 
+            pdfjsLib.getDocument({ data: data }).promise.then(function(pdf) {
+                pdfDoc = pdf;
+                if(fileNameEl) fileNameEl.textContent = currentFile ? currentFile.name : 'N/A';
+                if(pageCountEl) pageCountEl.textContent = pdf.numPages;
+                if(pageNumEl) pageNumEl.textContent = '1';
+                canvas = document.createElement('canvas');
+                ctx = canvas.getContext('2d');
+                if(pdfViewerEl) pdfViewerEl.appendChild(canvas);
+                annotations = {};
+                for (let i = 1; i <= pdf.numPages; i++) annotations[i] = [];
+                pageNum = 1; scale = 1.0;
+                renderPage(pageNum); 
+                showLoadingSpinner(false);
+            }).catch(function(error) {
+                showLoadingSpinner(false);
+                console.error('Error loading PDF:', error);
+                Swal.fire('ข้อผิดพลาด', 'เกิดข้อผิดพลาดในการโหลด PDF: ' + error.message, 'error');
+                closePDF();
+            });
+        }
+        
+        function renderPage(num) {
+            if (!pdfDoc) { return; }
+            if (pageRendering && currentRenderTask) { currentRenderTask.cancel(); }
+            pageRendering = true;
+            pdfDoc.getPage(num).then(function(page) {
+                const a4Container = document.getElementById('a4-container');
+                if (!a4Container || a4Container.offsetWidth === 0) {
+                    setTimeout(() => { pageRendering = false; renderPage(num); }, 150); return;
+                }
+                const containerWidth = a4Container.offsetWidth;
+                const viewportDefault = page.getViewport({ scale: 1 });
+                const scaleRequiredToFit = containerWidth / viewportDefault.width;
+                const viewport = page.getViewport({ scale: scaleRequiredToFit * scale });
+                if(canvas) { canvas.height = viewport.height; canvas.width = viewport.width; }
+                else { pageRendering = false; return; }
+                const renderContext = { canvasContext: ctx, viewport: viewport };
+                const task = page.render(renderContext);
+                currentRenderTask = task;
+                task.promise.then(function() {
+                    pageRendering = false;
+                    renderAnnotations(num);
+                    if (registrationInfo) displayRegistrationInfo();
+                    if (pageNumPending !== null) { const p = pageNumPending; pageNumPending = null; queueRenderPage(p); }
+                    const user = JSON.parse(sessionStorage.getItem('currentUser'));
+                    if (user) { updateUIAccess(user.role, true); }
+                }).catch(function(err){
+                    pageRendering = false;
+                    if (err.name !== 'RenderingCancelledException') console.error(`Error rendering page ${num}: ${err.message}`);
+                });
+            }).catch(function(err){
+                 pageRendering = false;
+                 console.error(`Error getting page ${num}: ${err.message}`);
+            });
+            if(pageNumEl) pageNumEl.textContent = num;
+        }
+
+        function displayRegistrationInfo() {
+             if (!registrationInfo || !document.getElementById('a4-container')) return;
+            const a4Cont = document.getElementById('a4-container');
+            let existingInfo = a4Cont.querySelector('.registration-info');
+            if (existingInfo) existingInfo.remove();
+            const infoElement = document.createElement('div');
+            infoElement.className = 'registration-info';
+            infoElement.innerHTML = `<p><strong>โรงเรียน:</strong> ${registrationInfo.schoolName}</p><p><strong>ที่:</strong> ${registrationInfo.documentNumber}</p><p><strong>วันที่:</strong> ${registrationInfo.documentDate}</p><p><strong>เวลา:</strong> ${registrationInfo.documentTime} น.</p>`;
+            a4Cont.appendChild(infoElement);
+        }
+
+        function renderAnnotations(pageNumber) {
+            const a4Container = document.getElementById('a4-container');
+            if (!a4Container) return;
+            a4Container.querySelectorAll('.text-annotation').forEach(anno => anno.remove());
+            if (annotations[pageNumber]) annotations[pageNumber].forEach(createAnnotationElement);
+        }
+
+        function createAnnotationElement(annotation) {
+            const container = document.getElementById('a4-container'); if(!container) return;
+            const el = document.createElement('div'); el.className = `text-annotation type-${annotation.type}`;
+            el.setAttribute('data-id', annotation.id); el.style.left = annotation.x + 'px'; el.style.top = annotation.y + 'px';
+            const textDiv = document.createElement('div'); textDiv.setAttribute('contenteditable', 'true');
+            textDiv.style.whiteSpace = 'pre-wrap'; textDiv.textContent = annotation.text; el.appendChild(textDiv);
+            if (annotation.adminName) { const nameDiv = document.createElement('div'); nameDiv.className = 'admin-name'; nameDiv.textContent = annotation.adminName; el.appendChild(nameDiv); }
+            const delBtn = document.createElement('button'); delBtn.className = 'delete-btn';
+            delBtn.innerHTML = '×'; delBtn.onclick = (e) => { e.stopPropagation(); deleteAnnotation(annotation.id); }; el.appendChild(delBtn);
+            if (annotation.signature) { const sigImg = document.createElement('img'); sigImg.src = annotation.signature; sigImg.className = 'signature-image'; el.appendChild(sigImg); }
+            makeElementDraggable(el); textDiv.onblur = function() { updateAnnotationText(annotation.id, this.textContent); }; container.appendChild(el);
+        }
+
+        function makeElementDraggable(element) {
+            let p1=0,p2=0,p3=0,p4=0; element.onmousedown=dragMD;
+            function dragMD(e){e=e||window.event;if(e.target.className==='delete-btn'||e.target.getAttribute('contenteditable')==='true')return;e.preventDefault();p3=e.clientX;p4=e.clientY;document.onmouseup=closeDrag;document.onmousemove=elDrag;}
+            function elDrag(e){e=e||window.event;e.preventDefault();p1=p3-e.clientX;p2=p4-e.clientY;p3=e.clientX;p4=e.clientY;const r=element.parentElement.getBoundingClientRect();let t=element.offsetTop-p2,l=element.offsetLeft-p1;t=Math.max(0,Math.min(t,r.height-element.offsetHeight));l=Math.max(0,Math.min(l,r.width-element.offsetWidth));element.style.top=t+"px";element.style.left=l+"px";}
+            function closeDrag(){document.onmouseup=null;document.onmousemove=null;updateAnnotationPosition(parseInt(element.getAttribute('data-id')),element.offsetLeft,element.offsetTop);}
+        }
+
+        function addTextAnnotation(text,adminName,x,y,type,signature=null){
+            const ann={id:currentAnnotationId++,text,adminName,x,y,page:pageNum,type,signature};if(!annotations[pageNum])annotations[pageNum]=[];annotations[pageNum].push(ann);createAnnotationElement(ann);return ann.id;
+        }
+
+        function updateAnnotationText(id,text){
+            const ann=annotations[pageNum]?.find(a=>a.id===id);if(ann)ann.text=text;
+        }
+
+        function updateAnnotationPosition(id,x,y){
+            const ann=annotations[pageNum]?.find(a=>a.id===id);if(ann){ann.x=x;ann.y=y;}
+        }
+
+        function deleteAnnotation(id){
+            if(annotations[pageNum])annotations[pageNum]=annotations[pageNum].filter(a=>a.id!==id);const el=document.querySelector(`.text-annotation[data-id="${id}"]`);if(el)el.remove();
+        }
+
+        function queueRenderPage(num){
+            if(pageRendering){pageNumPending=num;if(currentRenderTask)currentRenderTask.cancel();}else{renderPage(num);}
+        }
+
+        function closePDF() {
+            if (currentRenderTask) { currentRenderTask.cancel(); currentRenderTask = null; }
+            pdfDoc = null; pageNum = 1; scale = 1.0; currentFile = null;
+            annotations = {}; currentAnnotationId = 1;
+            registrationInfo = null;
+            if(schoolNameInput) schoolNameInput.value = appBasicData.schoolName;
+            if(documentNumberInput) documentNumberInput.value = '';
+            if(fileInput) fileInput.value = '';
+            setInitialUIState();
+            setDefaultDateTime();
+        }
+
+        if(prevPageBtn) prevPageBtn.addEventListener('click', function(){if(!pdfDoc||pageNum<=1)return;pageNum--;queueRenderPage(pageNum);});
+        if(nextPageBtn) nextPageBtn.addEventListener('click', function(){if(!pdfDoc||pageNum>=pdfDoc.numPages)return;pageNum++;queueRenderPage(pageNum);});
+        if(zoomInBtn) zoomInBtn.addEventListener('click', function(){if(!pdfDoc)return;scale=Math.min(3.0,scale+0.2);renderPage(pageNum);});
+        if(zoomOutBtn) zoomOutBtn.addEventListener('click', function(){if(!pdfDoc)return;scale=Math.max(0.2,scale-0.2);renderPage(pageNum);});
+        if(zoomResetBtn) zoomResetBtn.addEventListener('click', function(){if(!pdfDoc)return;scale=1.0;renderPage(pageNum);});
+        
+        window.addEventListener('resize', function() {
+            const user = JSON.parse(sessionStorage.getItem('currentUser'));
+            if (pdfDoc && user && pdfAnnotationSection && !pdfAnnotationSection.classList.contains('hidden')) {
+                clearTimeout(window.resizeTimeout);
+                window.resizeTimeout = setTimeout(() => renderPage(pageNum), 250);
+            }
+        });
+        
+        if(uploadAreaEl) {
+            uploadAreaEl.addEventListener('dragover', function(e) { e.preventDefault(); uploadAreaEl.style.backgroundColor = 'rgba(106, 17, 203, 0.15)'; });
+            uploadAreaEl.addEventListener('dragleave', function() { uploadAreaEl.style.backgroundColor = 'rgba(106, 17, 203, 0.05)'; });
+            uploadAreaEl.addEventListener('drop', function(e) {
+                e.preventDefault(); uploadAreaEl.style.backgroundColor = 'rgba(106, 17, 203, 0.05)';
+                const file = e.dataTransfer.files[0];
+                if (file && file.type === 'application/pdf') {
+                    const MAX_ORIGINAL_FILE_SIZE_BYTES = 20 * 1024 * 1024;
+                    if (file.size > MAX_ORIGINAL_FILE_SIZE_BYTES) {
+                        Swal.fire('ไฟล์ใหญ่เกินไป',`ไฟล์ PDF (${Math.round(file.size/(1024*1024))}MB) ใหญ่กว่าที่แนะนำ (${Math.round(MAX_ORIGINAL_FILE_SIZE_BYTES/(1024*1024))}MB).`,'warning');
+                    }
+                    loadPDFFile(file);
+                } else if (file) { Swal.fire('ข้อผิดพลาด','กรุณาเลือกไฟล์ PDF เท่านั้น','error'); }
+            });
+        }
+        
+        function setDefaultDateTime() {
+            const now=new Date(),currentDate=now.toISOString().split('T')[0],h=String(now.getHours()).padStart(2,'0'),m=String(now.getMinutes()).padStart(2,'0'),currentTime=`${h}:${m}`;
+            if(documentDateInput) documentDateInput.value=currentDate;
+            if(documentTimeInput) documentTimeInput.value=currentTime;
+        }
+
+        // 2. ฟังก์ชันนี้ถูกย้ายไปข้างบนแล้ว เราสามารถลบออกจากตรงนี้ได้เลย
+        // function showLoadingSpinner(show, message = "กำลังโหลด...") { ... }
+    });
 </script>
 </body>
 </html>
